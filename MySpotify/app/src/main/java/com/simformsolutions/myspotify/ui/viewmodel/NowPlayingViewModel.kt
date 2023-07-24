@@ -68,7 +68,8 @@ class NowPlayingViewModel @Inject constructor(
                                 track.album.images.firstOrNull()?.url,
                                 track.name,
                                 "Track",
-                                artists
+                                artists,
+                                track.previewUrl
                             ).also { updateLike(it) }
                         }
                     }
@@ -95,7 +96,8 @@ class NowPlayingViewModel @Inject constructor(
                             resource.data.images.firstOrNull()?.url,
                             track.name,
                             "Track",
-                            artists
+                            artists,
+                            track.previewUrl
                         ).also { updateLike(it) }
                     }
                     items?.let {
@@ -121,7 +123,8 @@ class NowPlayingViewModel @Inject constructor(
                             track.album.images.firstOrNull()?.url,
                             track.name,
                             "Track",
-                            artists
+                            artists,
+                            track.previewUrl
                         ).also { updateLike(it) }
                     }
                     items?.let {

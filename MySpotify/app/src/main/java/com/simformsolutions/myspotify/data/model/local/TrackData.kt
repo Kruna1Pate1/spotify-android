@@ -10,6 +10,7 @@ data class TrackItem(
     val title: String,
     val type: String,
     val artists: String,
+    val previewUrl: String? = null,
     var description: String = "",
     private var _isLiked: Boolean = false
 ) : BaseObservable() {

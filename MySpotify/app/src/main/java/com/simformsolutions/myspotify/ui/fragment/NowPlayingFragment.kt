@@ -1,8 +1,11 @@
 package com.simformsolutions.myspotify.ui.fragment
 
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.ActivityInfo
 import android.os.Build
@@ -15,6 +18,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.navArgs
 import com.simformsolutions.myspotify.R
 import com.simformsolutions.myspotify.data.model.local.ItemType
+import com.simformsolutions.myspotify.data.model.local.TrackItem
 import com.simformsolutions.myspotify.databinding.FragmentNowPlayingBinding
 import com.simformsolutions.myspotify.ui.base.BaseFragment
 import com.simformsolutions.myspotify.ui.service.NowPlayingService
@@ -31,6 +35,7 @@ class NowPlayingFragment : BaseFragment<FragmentNowPlayingBinding, NowPlayingVie
     private val args: NowPlayingFragmentArgs by navArgs()
     private val activityViewModel: MainViewModel by activityViewModels()
     private var nowPlayingService: NowPlayingService? = null
+    private val receiver = NowPlayingReceiver()
     private var isBound = false
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -49,6 +54,12 @@ class NowPlayingFragment : BaseFragment<FragmentNowPlayingBinding, NowPlayingVie
 
     override fun initialize() {
         super.initialize()
+        requireContext().registerReceiver(receiver, IntentFilter().apply {
+            addAction(IntentData.ACTION_RESUME_PLAYBACK)
+            addAction(IntentData.ACTION_PAUSE_PLAYBACK)
+            addAction(IntentData.ACTION_NEXT_TRACK)
+            addAction(IntentData.ACTION_PREVIOUS_TRACK)
+        })
         setupUI()
     }
 
@@ -63,7 +74,7 @@ class NowPlayingFragment : BaseFragment<FragmentNowPlayingBinding, NowPlayingVie
                 }
                 launch {
                     viewModel.track.collectLatest { track ->
-                        track?.previewUrl?.let { nowPlayingService?.startPlayback(it) }
+                        track?.let { nowPlayingService?.startPlayback(it) }
                     }
                 }
             }
@@ -88,6 +99,7 @@ class NowPlayingFragment : BaseFragment<FragmentNowPlayingBinding, NowPlayingVie
         activityViewModel.setAppBarScrollingEnabled(true)
         activityViewModel.setSubtitle("")
         requireActivity().requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        requireContext().unregisterReceiver(receiver)
         super.onDestroyView()
     }
 
@@ -113,21 +125,42 @@ class NowPlayingFragment : BaseFragment<FragmentNowPlayingBinding, NowPlayingVie
     }
 
     private fun setupListener() {
-        binding.btnPlayPause.addOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                nowPlayingService?.pausePlayback()
-            } else {
+        binding.btnPlayPause.setOnClickListener {
+            if (binding.btnPlayPause.isChecked) {
                 nowPlayingService?.resumePlayback()
+            } else {
+                nowPlayingService?.pausePlayback()
             }
         }
     }
 
-    private fun startNowPlayingService() {
-        val intent = Intent(requireContext(), NowPlayingService::class.java)
+    private fun startNowPlayingService(trackItem: TrackItem? = null) {
+        val intent = Intent(requireContext(), NowPlayingService::class.java).apply {
+            putExtra(IntentData.TRACK_ITEM, trackItem)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             requireContext().startService(intent)
         } else {
             requireContext().startService(intent)
+        }
+    }
+
+    private inner class NowPlayingReceiver : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                IntentData.ACTION_RESUME_PLAYBACK -> {
+                    binding.btnPlayPause.isChecked = true
+                }
+                IntentData.ACTION_PAUSE_PLAYBACK -> {
+                    binding.btnPlayPause.isChecked = false
+                }
+                IntentData.ACTION_PREVIOUS_TRACK -> {
+                    viewModel.previousTrack()
+                }
+                IntentData.ACTION_NEXT_TRACK -> {
+                    viewModel.nextTrack()
+                }
+            }
         }
     }
 }

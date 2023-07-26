@@ -139,7 +139,7 @@ class NowPlayingFragment : BaseFragment<FragmentNowPlayingBinding, NowPlayingVie
             putExtra(IntentData.TRACK_ITEM, trackItem)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            requireContext().startService(intent)
+            requireContext().startForegroundService(intent)
         } else {
             requireContext().startService(intent)
         }

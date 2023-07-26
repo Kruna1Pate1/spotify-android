@@ -5,6 +5,10 @@
     android:id="@+id/nav_graph.xml"
     app:startDestination="@id/homeFragment">
 
+    <action
+        android:id="@+id/action_global_nowPlayingFragment"
+        app:destination="@id/nowPlayingFragment" />
+
     <fragment
         android:id="@+id/searchFragment"
         android:name="com.simformsolutions.myspotify.ui.fragment.SearchFragment"
@@ -37,7 +41,7 @@
         android:id="@+id/userProfileFragment"
         android:name="com.simformsolutions.myspotify.ui.fragment.UserProfileFragment"
         android:label="@string/label_profile"
-        tools:layout="@layout/layout_profile" >
+        tools:layout="@layout/layout_profile">
         <action
             android:id="@+id/action_userProfileFragment_to_viewPlaylistFragment"
             app:destination="@id/viewPlaylistFragment" />

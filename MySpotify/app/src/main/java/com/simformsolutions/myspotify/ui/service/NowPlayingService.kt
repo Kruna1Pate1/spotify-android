@@ -8,23 +8,29 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import android.media.MediaPlayer
 import android.os.Binder
+import android.os.Build
 import android.os.IBinder
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.IntentCompat
+import androidx.core.os.bundleOf
+import androidx.navigation.NavDeepLinkBuilder
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import com.simformsolutions.myspotify.R
+import com.simformsolutions.myspotify.data.model.local.ItemType
 import com.simformsolutions.myspotify.data.model.local.TrackItem
 import com.simformsolutions.myspotify.ui.activity.MainActivity
 import com.simformsolutions.myspotify.utils.AppConstants
 import com.simformsolutions.myspotify.utils.IntentData
+import androidx.media.app.NotificationCompat as MediaNotificationCompat
 
 class NowPlayingService : Service() {
 
@@ -36,7 +42,7 @@ class NowPlayingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent == null) return START_NOT_STICKY
-
+        setupNotification()
         registerReceiver(receiver, IntentFilter().apply {
             addAction(IntentData.ACTION_TOGGLE_PLAYBACK)
         })
@@ -44,29 +50,48 @@ class NowPlayingService : Service() {
 
         IntentCompat.getParcelableExtra(intent, IntentData.TRACK_ITEM, TrackItem::class.java)
             ?.let { track ->
-                setupNotification(track)
+                setupNotificationTrack(track)
                 startPlayback(track)
             }
         return START_NOT_STICKY
     }
 
-    private fun setupNotification(trackItem: TrackItem) {
-        val pendingIntent = Intent(this, MainActivity::class.java).let { intent ->
-            PendingIntent.getActivity(
-                this,
-                0,
-                intent,
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            )
-        }
-
+    private fun setupNotification() {
         notificationBuilder = NotificationCompat.Builder(this, AppConstants.NOW_PLAYING_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOW_PLAYING_NOTIFICATION_ID,
+                notificationBuilder.build(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            )
+        }
+    }
+
+    private fun setupNotificationTrack(trackItem: TrackItem) {
+        val args = bundleOf(
+            "trackId" to trackItem.id,
+            "id" to trackItem.id,
+            "type" to ItemType.TRACK
+        )
+
+        val nowPlayingIntent = NavDeepLinkBuilder(this)
+            .setComponentName(MainActivity::class.java)
+            .setGraph(R.navigation.nav_graph)
+            .setDestination(R.id.nowPlayingFragment, args)
+            .createPendingIntent()
+
+        notificationBuilder
             .setContentTitle(trackItem.title)
             .setLargeIcon(null)
+            .setColorized(true)
             .setContentText(trackItem.artists)
-            .setContentIntent(pendingIntent)
-            .setStyle(androidx.media.app.NotificationCompat.MediaStyle())
+            .setContentIntent(nowPlayingIntent)
+            .setFullScreenIntent(PendingIntent.getActivity(this, 4, Intent(), PendingIntent.FLAG_IMMUTABLE), true)
+            .setStyle(
+                MediaNotificationCompat.MediaStyle()
+                    .setShowActionsInCompactView(1)
+            )
         setupActions(mediaPlayer.isPlaying)
         Glide.with(this)
             .asBitmap()
@@ -83,6 +108,7 @@ class NowPlayingService : Service() {
 
     private fun setupActions(isPlaying: Boolean) {
         notificationBuilder
+            .setOngoing(isPlaying)
             .clearActions()
             // Previous track action
             .addAction(
@@ -129,11 +155,11 @@ class NowPlayingService : Service() {
                 Manifest.permission.POST_NOTIFICATIONS
             ) != PackageManager.PERMISSION_GRANTED
         ) return
-        notificationManager.notify(1, notificationBuilder.build())
+        notificationManager.notify(NOW_PLAYING_NOTIFICATION_ID, notificationBuilder.build())
     }
 
     fun startPlayback(trackItem: TrackItem) {
-        setupNotification(trackItem)
+        setupNotificationTrack(trackItem)
         mediaPlayer.apply {
             stop()
             reset()
@@ -163,6 +189,11 @@ class NowPlayingService : Service() {
         return binder
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        stopSelf()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(receiver)
@@ -189,5 +220,9 @@ class NowPlayingService : Service() {
                 }
             }
         }
+    }
+
+    companion object {
+        const val NOW_PLAYING_NOTIFICATION_ID = 1
     }
 }
